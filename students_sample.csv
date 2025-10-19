@@ -1,0 +1,4 @@
+student_id,name,branch,gpa,projects
+1001,Alice,Computer Science,8.4,"Project: Image classifier"
+1002,Bob,Information Technology,7.6,"Project: Web app"
+1003,Carla,Electronics,8.9,"Project: Embedded system"
