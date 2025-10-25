@@ -39,7 +39,7 @@ git checkout feature/advanced-ml-recommender
 ## 2) Create and activate a virtual environment
 
 ```bash
-python -m venv .venv
+py -m venv .venv
 # macOS / Linux
 source .venv/bin/activate
 # Windows (PowerShell)
@@ -61,7 +61,7 @@ Notes:
 ## 4) Download NLTK resources (one-time)
 
 ```bash
-python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+py -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
 ```
 
 ## 5) Prepare data
@@ -80,7 +80,7 @@ python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
 ## 6) Train the student performance model (creates models/)
 
 ```bash
-python -m src.train
+py -m src.train
 ```
 
 What this does:

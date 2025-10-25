@@ -34,9 +34,10 @@ def objective(trial, X_train, y_train, X_valid, y_valid):
         'lambda_l1': trial.suggest_loguniform('lambda_l1', 1e-8, 10.0),
         'lambda_l2': trial.suggest_loguniform('lambda_l2', 1e-8, 10.0),
     }
-    model = lgb.train(param, dtrain, valid_sets=[dvalid], early_stopping_rounds=50, verbose_eval=False)
+    model = lgb.train(param, dtrain, valid_sets=[dvalid])
     preds = model.predict(X_valid)
-    return mean_squared_error(y_valid, preds, squared=False)
+    return np.sqrt(np.mean((y_valid - preds) ** 2))
+
 
 def train(student_csv_path, save_prefix='student_perf', n_trials=20):
     df = load_students(student_csv_path)
@@ -55,7 +56,8 @@ def train(student_csv_path, save_prefix='student_perf', n_trials=20):
     joblib.dump(preprocessor, f"{MODEL_DIR}/{save_prefix}_preprocessor.joblib")
     joblib.dump(final_model, f"{MODEL_DIR}/{save_prefix}_lgbm.joblib")
     preds = final_model.predict(X_valid)
-    rmse = mean_squared_error(y_valid, preds, squared=False)
+    rmse =  np.sqrt(np.mean((y_valid - preds) ** 2))
+
     print("Saved model and preprocessor to", MODEL_DIR)
     print(f"Validation RMSE: {rmse:.4f}")
     return final_model, preprocessor

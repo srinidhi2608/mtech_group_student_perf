@@ -11,6 +11,7 @@ from src.recommender import load_courses_catalog, recommend_courses_for_company
 from src.pdf_ingest import ingest_pdf
 from src.embeddings import get_embeddings_model
 from src.vectorstore import get_vector_store
+from typing import List, Dict
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
