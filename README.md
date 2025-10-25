@@ -242,3 +242,92 @@ If no API key is provided, the system will use template-based responses that sti
 ## 15) License & credits
 
 - This is prototype code. Before production use, review, test, and adapt licensing as needed.
+
+---
+
+## 16) New Feature: Semester 6 Prediction and Company Matcher
+
+### Training the Sem_6 Prediction Model
+
+The new training script in `src/train.py` trains a LightGBM model to predict Semester 6 scores based on:
+- Previous semester scores (Sem_1 through Sem_5)
+- PUC scores
+- Attendance percentage
+- Study hours per day
+- Sleep hours per day
+- Courses completed (multi-hot encoded)
+
+To train the model:
+```bash
+python -m src.train
+```
+
+This creates `models/sem6_pred.joblib` containing the trained model, MultiLabelBinarizer for courses, and feature column names.
+
+### Using the /student_predict Endpoint
+
+The new `/student_predict` endpoint provides:
+1. **Sem_6 Score Prediction**: Based on student's academic and behavioral data
+2. **Company Matching**: Recommends top 5 companies based on courses completed and their job requirements
+
+**Request format:**
+```bash
+curl -X POST "http://localhost:8000/student_predict" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "PUC_Score": 85.5,
+    "Sem_1": 8.5,
+    "Sem_2": 8.7,
+    "Sem_3": 8.9,
+    "Sem_4": 9.0,
+    "Sem_5": 9.2,
+    "Attendance_%": 88.0,
+    "Study_Hours_Per_Day": 6.0,
+    "Sleep_Hours_Per_Day": 7.0,
+    "Courses_Completed": "Python,Java,Machine Learning"
+  }'
+```
+
+**Response format:**
+```json
+{
+  "predicted_Sem_6": 8.95,
+  "company_matches": [
+    {
+      "company": "Google",
+      "overlap": 12,
+      "avg_salary": 150000
+    },
+    {
+      "company": "Microsoft",
+      "overlap": 10,
+      "avg_salary": 145000
+    }
+  ]
+}
+```
+
+The company matcher uses TF-IDF vectorization on job descriptions to extract skill keywords and matches them against the student's completed courses. Results are ranked by skill overlap and average salary.
+
+### Quick Start
+
+1. Ensure you have the required CSV files:
+   - `simple_student_dataset.csv` (for training)
+   - `Glassdoor_Salary_Cleaned_Version.csv` (for company matching)
+
+2. Train the model:
+   ```bash
+   python -m src.train
+   ```
+
+3. Start the API server:
+   ```bash
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   ```
+
+4. Test the endpoint:
+   ```bash
+   curl -X POST "http://localhost:8000/student_predict" \
+     -H "Content-Type: application/json" \
+     -d '{"PUC_Score":75,"Sem_1":8,"Sem_2":8,"Sem_3":8,"Sem_4":8,"Sem_5":8,"Attendance_%":85,"Study_Hours_Per_Day":5,"Sleep_Hours_Per_Day":7,"Courses_Completed":"Python"}'
+   ```
