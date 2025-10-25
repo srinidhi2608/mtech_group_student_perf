@@ -1,22 +1,26 @@
-# Student Performance & Course Recommender — Prototype
+# Student Performance & Course Recommender — Enhanced with RAG
 
-This repository branch contains a prototype pipeline to:
+This repository branch contains an advanced prototype pipeline that:
 
-- Predict student performance (GPA) using a LightGBM model with Optuna tuning.
-- Extract skills from company job descriptions (Glassdoor dataset) and build company skill profiles.
-- Recommend courses (from a course catalog) to students so they can close skill gaps for a target company or target CTC.
-- Expose a FastAPI backend with /predict and /recommend endpoints.
-- Provide a lightweight Streamlit frontend (chat-like UI) for students.
+- Predicts student performance (GPA) using a LightGBM model with Optuna tuning.
+- Extracts skills from company job descriptions (Glassdoor dataset) and builds company skill profiles.
+- Recommends courses (from a course catalog) to students so they can close skill gaps for a target company or target CTC.
+- **NEW: PDF ingestion pipeline** - Upload and index educational PDFs for semantic search.
+- **NEW: RAG-powered chat** - Chat with your documents using retrieval-augmented generation.
+- **NEW: Vector search** - FAISS-based semantic search over documents and courses.
+- Exposes a FastAPI backend with /predict, /recommend, /upload_pdf, /chat, and /search endpoints.
+- Provides an enhanced Streamlit frontend with tabs for predictions, chat, and PDF uploads.
 
-This README explains how to run the system locally (development), train the model, and use the UI/API.
+This README explains how to run the system locally (development), train the model, and use the UI/API including the new PDF/chat features.
 
 ## Contents
-- src/: data processing, training, recommender logic
-- app/: FastAPI backend
-- frontend/: Streamlit UI
+- src/: data processing, training, recommender logic, **PDF ingestion, embeddings, vector store**
+- app/: FastAPI backend with **RAG endpoints**
+- frontend/: Enhanced Streamlit UI with **chat and PDF upload**
 - data/: sample courses catalog
-- models/: training artifacts (created after training)
-- requirements.txt
+- models/: training artifacts, **FAISS index and metadata** (created after training/indexing)
+- uploads/: uploaded PDF files (created at runtime)
+- requirements.txt: includes **sentence-transformers, faiss-cpu, PyMuPDF, python-multipart**
 
 ## Prerequisites
 - Python 3.8+ (3.10 recommended)
@@ -51,6 +55,7 @@ pip install -r requirements.txt
 
 Notes:
 - The requirements include NLP & transformer libraries; installing sentence-transformers may pull a few hundred MB.
+- **New dependencies**: faiss-cpu (vector search), PyMuPDF (PDF parsing), python-multipart (file uploads).
 - If you face issues during installation, try upgrading pip and wheel, or install troublesome packages separately.
 
 ## 4) Download NLTK resources (one-time)
@@ -104,6 +109,21 @@ Endpoints:
                                    {"target_company":"Wish","completed_courses":["Intro to Python"]}
                                    {"target_ctc":120000,"completed_courses":[]}
                                    returns: {"company": "<name>", "recommendations":[{course info}]}
+- **POST /upload_pdf**           -> Upload a PDF file for indexing
+                                   returns: {"status": "success", "chunks_indexed": N}
+- **POST /chat**                 -> body: {"query": "your question", "top_k": 5}
+                                   returns: RAG-powered answer with retrieved context
+- **POST /search**               -> body: {"query": "search term", "top_k": 10}
+                                   returns: semantic search results from indexed documents
+
+**New RAG Features:**
+- The `/chat` endpoint uses retrieval-augmented generation (RAG)
+- It retrieves top-k document chunks and course entries via FAISS
+- If `OPENAI_API_KEY` environment variable is set, it uses GPT-3.5 for answers
+- Otherwise, it returns a synthesized template-based answer
+- Uploaded PDFs are saved to `uploads/` and indexed automatically
+- FAISS index and metadata are persisted to `models/faiss.index` and `models/faiss_meta.json`
+- The system is defensive: if no index exists at startup, it initializes blank structures
 
 ## 8) Run the Streamlit frontend (separate terminal)
 
@@ -111,8 +131,21 @@ Endpoints:
 streamlit run frontend/app.py
 ```
 
-- Use the sidebar to enter student info, target company or CTC, completed courses.
-- Click "Ask Coach" to get a predicted GPA and recommended courses.
+**Enhanced UI with three tabs:**
+
+1. **Predict & Recommend** (original features):
+   - Use the sidebar to enter student info, target company or CTC, completed courses
+   - Click "Ask Coach" to get a predicted GPA and recommended courses
+
+2. **Chat with PDFs** (new):
+   - Interactive chat interface to ask questions about uploaded documents
+   - Get answers with context from PDFs and course recommendations
+   - View sources and recommended courses
+
+3. **Upload PDFs** (new):
+   - Upload educational PDFs, textbooks, or course materials
+   - System automatically indexes the content for semantic search
+   - Search functionality to find specific topics across all documents
 
 ## 9) Example API usage (curl)
 
@@ -126,21 +159,65 @@ Recommend:
 curl -X POST "http://localhost:8000/recommend" -H "Content-Type: application/json" -d '{"target_company":"Wish","completed_courses":["Intro to Python"]}'
 ```
 
-## 10) Docker (optional)
+**Upload PDF:**
+```bash
+curl -X POST "http://localhost:8000/upload_pdf" -F "file=@/path/to/document.pdf"
+```
+
+**Chat:**
+```bash
+curl -X POST "http://localhost:8000/chat" -H "Content-Type: application/json" -d '{"query":"What are the best courses for machine learning?","top_k":5}'
+```
+
+**Search:**
+```bash
+curl -X POST "http://localhost:8000/search" -H "Content-Type: application/json" -d '{"query":"neural networks","top_k":10}'
+```
+
+## 10) Test the new PDF/RAG features
+
+Run the sanity tests to verify the components work:
+```bash
+python test_sanity.py
+```
+
+This will test:
+- Text chunking functionality
+- Embeddings model (sentence-transformers)
+- Vector store (FAISS) with save/load
+
+All tests should pass before using the system.
+
+## 11) Using OpenAI for better chat responses (optional)
+
+To enable GPT-powered answers in the chat endpoint:
+```bash
+export OPENAI_API_KEY="your-api-key-here"
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+If no API key is provided, the system will use template-based responses that still work well for basic queries.
+
+## 12) Docker (optional)
 
 - I can add a Dockerfile on request. Typical steps:
   - Build image with Python dependencies and copy repo
   - Create separate services for backend and frontend (or a single service if simple)
   - Use docker-compose for multi-service local setup (backend + frontend)
 
-## 11) Next improvements / recommended work
+## 13) Next improvements / recommended work
 
 - Improve data features:
   - Add term-wise grades, attendance, credits, internships, placements, domain projects.
   - Encode time series (RNN/Transformer) if you have multi-term trajectories.
 - Better NLP matching:
-  - Use sentence-transformers to embed job descriptions and course descriptions and compute semantic similarity.
+  - **✓ DONE**: Use sentence-transformers to embed job descriptions and course descriptions and compute semantic similarity.
   - Use named-entity recognition or a curated job-skill mapping for higher precision.
+- **RAG enhancements**:
+  - Add conversation history for multi-turn chat
+  - Implement hybrid search (keyword + semantic)
+  - Add re-ranking for better result quality
+  - Support more document formats (DOCX, HTML, etc.)
 - Model improvements:
   - Try neural networks (Keras/TensorFlow) for richer feature interactions, or ensemble models.
   - Calibrate and validate model with cross-validation and hold-out sets.
@@ -151,13 +228,17 @@ curl -X POST "http://localhost:8000/recommend" -H "Content-Type: application/jso
 - UX improvements:
   - A richer React-based chat UI with conversation context and user accounts.
   - Show learning paths, course durations, estimated time to reach target skills.
+  - **✓ DONE**: Multi-tab Streamlit interface with chat and PDF upload.
 
-## 12) Troubleshooting
+## 14) Troubleshooting
 
 - FastAPI error about model artifacts: ensure `models/` has the .joblib files after training.
 - Heavy install steps: install `transformers`/`sentence-transformers` only if you plan to use embeddings.
+- **PDF upload fails**: Check that `uploads/` directory exists and is writable.
+- **Chat returns errors**: Ensure embeddings model loaded successfully (check logs).
+- **Vector store empty**: Upload at least one PDF or ensure course catalog is indexed.
 - If the recommender returns no matches: expand `data/courses_catalog.csv` and ensure skills are mapped.
 
-## 13) License & credits
+## 15) License & credits
 
 - This is prototype code. Before production use, review, test, and adapt licensing as needed.
