@@ -1,51 +1,62 @@
-# AI Course-Recommendation Chatbot (Student CTC Improvement)
+# Student Performance & Course Recommender (Prototype)
 
-This project is a Python-based AI chatbot with a web UI (Streamlit) designed to help students improve their campus-selection CTC (salary) by:
-- Using a student dataset
-- Using a syllabus PDF (or multiple syllabus PDFs) to see what courses cover which skills
-- Incorporating existing student performance prediction results (CSV with predicted CTC)
-- Suggesting courses that may increase predicted CTC
-- Answering conversational questions about students, recommendations, and the syllabus
+This branch adds a prototype to predict student performance and recommend courses to improve employability for a target company or target CTC. It includes:
 
-Key features
-- Simple chat UI for conversational queries
-- Student selection and context-aware answers (uses the student record + predicted CTC)
-- Syllabus PDF parsing and lightweight retrieval (keyword matching)
-- Rule-based recommender with optional LLM-enhanced replies (OpenAI support is optional)
+- A LightGBM model with Optuna hyperparameter tuning (src/train.py).
+- A TF-IDF-based skill extractor built from Glassdoor job descriptions to profile companies (src/data_processing.py).
+- A content-based course recommender that maps company skills to a course catalog (src/recommender.py).
+- A FastAPI backend exposing /predict and /recommend endpoints (app/main.py).
+- A Streamlit frontend with a chat-like UI for students (frontend/app.py).
 
-Quick demo (local)
-1. Install dependencies:
-   - pip install -r requirements.txt
+## Setup (local)
 
-2. Run the app:
-   - streamlit run app.py
+1. Clone repository and checkout the branch (already created):
 
-3. Upload:
-   - students.csv (student dataset)
-   - predictions.csv (prediction results with predicted_ctc column)
-   - syllabus PDF(s)
+   git clone https://github.com/srinidhi2608/mtech_group_student_perf.git
+   cd mtech_group_student_perf
+   git checkout feature/advanced-ml-recommender
 
-4. Choose a student in the sidebar and chat using the chat UI. Ask things like:
-   - "Which courses from the uploaded syllabus would help increase my CTC?"
-   - "What's my predicted CTC?"
-   - "What skills should I focus on to improve my chances in campus placements?"
+2. Create a Python virtual environment and install dependencies:
 
-OpenAI (optional)
-- The app has optional OpenAI integration for nicer conversational replies.
-- Set environment variable OPENAI_API_KEY to enable.
-- If not set, the chatbot uses a robust rule-based fallback.
+   python -m venv .venv
+   source .venv/bin/activate   # macOS / Linux
+   .venv\Scripts\activate     # Windows
+   pip install --upgrade pip
+   pip install -r requirements.txt
 
-File list
-- app.py: Streamlit UI
-- chatbot.py: Chatbot orchestration (context building + LLM or fallback)
-- data_processing.py: CSV loaders and record helpers
-- syllabus_parser.py: Extract text from PDF and build simple index
-- recommender.py: Course suggestion logic
-- requirements.txt
-- students_sample.csv, predictions_sample.csv: example inputs
-- .gitignore
+3. Download NLTK data (required once):
 
-Notes & Next steps
-- Swap in better NLP pipelines (embeddings + vector DB) for more advanced retrieval.
-- Replace rule-based recommender with an ML model trained on historical uplift data.
-- Add scheduling (course timelines), course metadata (duration, cost) and post-course uplift simulation.
+   python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+
+4. Prepare datasets:
+
+   - Place your student dataset CSV at the repo root and name it `students_sample.csv` (or update src/train.py to point to your file).
+   - Make sure the Glassdoor dataset `Glassdoor_Salary_Cleaned_Version.csv` is in the repo root. The recommender extracts skills from the `Job Description` column.
+
+5. Train the model (this creates `models/` artifacts):
+
+   python -m src.train
+
+   This will run Optuna for a small number of trials and write:
+   - models/student_perf_preprocessor.joblib
+   - models/student_perf_lgbm.joblib
+
+6. Run the backend API:
+
+   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+7. Run the Streamlit frontend (in a separate terminal):
+
+   streamlit run frontend/app.py
+
+8. Use the UI:
+
+   - Fill the student info in the sidebar and click "Ask Coach".
+   - The UI will call the backend to predict next GPA and recommend courses.
+
+## Notes & next steps
+
+- Improve the student model with more features (attendance, term-wise grades, extra-curriculars).
+- Replace TF-IDF matching by semantic embeddings (sentence-transformers) for better skill matching.
+- Add authentication to the API and rate-limiting for public deployments.
+- Add unit tests, CI, and a Dockerfile for reproducible deployments.
