@@ -1,62 +1,163 @@
-# Student Performance & Course Recommender (Prototype)
+# Student Performance & Course Recommender — Prototype
 
-This branch adds a prototype to predict student performance and recommend courses to improve employability for a target company or target CTC. It includes:
+This repository branch contains a prototype pipeline to:
 
-- A LightGBM model with Optuna hyperparameter tuning (src/train.py).
-- A TF-IDF-based skill extractor built from Glassdoor job descriptions to profile companies (src/data_processing.py).
-- A content-based course recommender that maps company skills to a course catalog (src/recommender.py).
-- A FastAPI backend exposing /predict and /recommend endpoints (app/main.py).
-- A Streamlit frontend with a chat-like UI for students (frontend/app.py).
+- Predict student performance (GPA) using a LightGBM model with Optuna tuning.
+- Extract skills from company job descriptions (Glassdoor dataset) and build company skill profiles.
+- Recommend courses (from a course catalog) to students so they can close skill gaps for a target company or target CTC.
+- Expose a FastAPI backend with /predict and /recommend endpoints.
+- Provide a lightweight Streamlit frontend (chat-like UI) for students.
 
-## Setup (local)
+This README explains how to run the system locally (development), train the model, and use the UI/API.
 
-1. Clone repository and checkout the branch (already created):
+## Contents
+- src/: data processing, training, recommender logic
+- app/: FastAPI backend
+- frontend/: Streamlit UI
+- data/: sample courses catalog
+- models/: training artifacts (created after training)
+- requirements.txt
 
-   git clone https://github.com/srinidhi2608/mtech_group_student_perf.git
-   cd mtech_group_student_perf
-   git checkout feature/advanced-ml-recommender
+## Prerequisites
+- Python 3.8+ (3.10 recommended)
+- Git
+- ~8 GB free disk space; more during training/embedding installs
+- (Optional) Docker if you prefer containerized runs
 
-2. Create a Python virtual environment and install dependencies:
+## 1) Clone & checkout the branch
 
-   python -m venv .venv
-   source .venv/bin/activate   # macOS / Linux
-   .venv\Scripts\activate     # Windows
-   pip install --upgrade pip
-   pip install -r requirements.txt
+```bash
+git clone https://github.com/srinidhi2608/mtech_group_student_perf.git
+cd mtech_group_student_perf
+git checkout feature/advanced-ml-recommender
+```
 
-3. Download NLTK data (required once):
+## 2) Create and activate a virtual environment
 
-   python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+```bash
+python -m venv .venv
+# macOS / Linux
+source .venv/bin/activate
+# Windows (PowerShell)
+.venv\\Scripts\\Activate.ps1
+```
 
-4. Prepare datasets:
+## 3) Install Python dependencies
 
-   - Place your student dataset CSV at the repo root and name it `students_sample.csv` (or update src/train.py to point to your file).
-   - Make sure the Glassdoor dataset `Glassdoor_Salary_Cleaned_Version.csv` is in the repo root. The recommender extracts skills from the `Job Description` column.
+```bash
+pip install --upgrade pip
+pip install -r requirements.txt
+```
 
-5. Train the model (this creates `models/` artifacts):
+Notes:
+- The requirements include NLP & transformer libraries; installing sentence-transformers may pull a few hundred MB.
+- If you face issues during installation, try upgrading pip and wheel, or install troublesome packages separately.
 
-   python -m src.train
+## 4) Download NLTK resources (one-time)
 
-   This will run Optuna for a small number of trials and write:
-   - models/student_perf_preprocessor.joblib
-   - models/student_perf_lgbm.joblib
+```bash
+python -c "import nltk; nltk.download('punkt'); nltk.download('stopwords')"
+```
 
-6. Run the backend API:
+## 5) Prepare data
 
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+- Student dataset:
+  Place your student CSV at the repo root and name it `students_sample.csv` (or update `src/train.py` to point to your file).
+  Expected minimal columns (example):
+  ```csv
+  student_id,name,branch,gpa,projects
+  ```
+- Company dataset:
+  Ensure `Glassdoor_Salary_Cleaned_Version.csv` is present at repo root (the recommender extracts skills from its `Job Description` column).
+- Courses catalog:
+  There is a sample at `data/courses_catalog.csv`. Expand this with course descriptions and skills (comma-separated).
 
-7. Run the Streamlit frontend (in a separate terminal):
+## 6) Train the student performance model (creates models/)
 
-   streamlit run frontend/app.py
+```bash
+python -m src.train
+```
 
-8. Use the UI:
+What this does:
+- Loads `students_sample.csv`
+- Builds a TF-IDF + one-hot preprocessing pipeline for `projects` + `branch`
+- Runs an Optuna search (default 20 trials) to tune LightGBM hyperparameters
+- Saves artifacts to `models/`:
+  - `models/student_perf_preprocessor.joblib`
+  - `models/student_perf_lgbm.joblib`
 
-   - Fill the student info in the sidebar and click "Ask Coach".
-   - The UI will call the backend to predict next GPA and recommend courses.
+Tips:
+- For a real run use your full dataset and increase `n_trials` in `src/train.py`
+- If your target is not literal GPA, adjust `prepare_target()` in `src/train.py`
 
-## Notes & next steps
+## 7) Start the backend API
 
-- Improve the student model with more features (attendance, term-wise grades, extra-curriculars).
-- Replace TF-IDF matching by semantic embeddings (sentence-transformers) for better skill matching.
-- Add authentication to the API and rate-limiting for public deployments.
-- Add unit tests, CI, and a Dockerfile for reproducible deployments.
+```bash
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Endpoints:
+- GET  /                         -> status message
+- POST /predict                  -> body: {"branch":"...", "gpa":..., "projects":"..."}
+                                   returns: {"predicted_gpa": ...}
+- POST /recommend                -> body examples:
+                                   {"target_company":"Wish","completed_courses":["Intro to Python"]}
+                                   {"target_ctc":120000,"completed_courses":[]}
+                                   returns: {"company": "<name>", "recommendations":[{course info}]}
+
+## 8) Run the Streamlit frontend (separate terminal)
+
+```bash
+streamlit run frontend/app.py
+```
+
+- Use the sidebar to enter student info, target company or CTC, completed courses.
+- Click "Ask Coach" to get a predicted GPA and recommended courses.
+
+## 9) Example API usage (curl)
+
+Predict:
+```bash
+curl -X POST "http://localhost:8000/predict" -H "Content-Type: application/json" -d '{"branch":"Computer Science","gpa":8.2,"projects":"Image classifier"}'
+```
+
+Recommend:
+```bash
+curl -X POST "http://localhost:8000/recommend" -H "Content-Type: application/json" -d '{"target_company":"Wish","completed_courses":["Intro to Python"]}'
+```
+
+## 10) Docker (optional)
+
+- I can add a Dockerfile on request. Typical steps:
+  - Build image with Python dependencies and copy repo
+  - Create separate services for backend and frontend (or a single service if simple)
+  - Use docker-compose for multi-service local setup (backend + frontend)
+
+## 11) Next improvements / recommended work
+
+- Improve data features:
+  - Add term-wise grades, attendance, credits, internships, placements, domain projects.
+  - Encode time series (RNN/Transformer) if you have multi-term trajectories.
+- Better NLP matching:
+  - Use sentence-transformers to embed job descriptions and course descriptions and compute semantic similarity.
+  - Use named-entity recognition or a curated job-skill mapping for higher precision.
+- Model improvements:
+  - Try neural networks (Keras/TensorFlow) for richer feature interactions, or ensemble models.
+  - Calibrate and validate model with cross-validation and hold-out sets.
+- Productionize:
+  - Add authentication, rate limiting, logging, metrics.
+  - Add CI, unit tests, and E2E tests.
+  - Containerize and deploy to cloud (recommended: AWS/GCP/Azure, Render, or Heroku for simple deployments).
+- UX improvements:
+  - A richer React-based chat UI with conversation context and user accounts.
+  - Show learning paths, course durations, estimated time to reach target skills.
+
+## 12) Troubleshooting
+
+- FastAPI error about model artifacts: ensure `models/` has the .joblib files after training.
+- Heavy install steps: install `transformers`/`sentence-transformers` only if you plan to use embeddings.
+- If the recommender returns no matches: expand `data/courses_catalog.csv` and ensure skills are mapped.
+
+## 13) License & credits
+
+- This is prototype code. Before production use, review, test, and adapt licensing as needed.
