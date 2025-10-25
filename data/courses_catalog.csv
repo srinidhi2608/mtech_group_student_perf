@@ -1,7 +1,7 @@
 course_id,course_name,skills,url
 C001,Intro to Python,python,https://example.com/python
-C002,Machine Learning Basics,supervised learning, regression, classification,https://example.com/ml
-C003,Deep Learning with PyTorch,deep learning, neural networks, pytorch,https://example.com/pytorch
-C004,Data Engineering with SQL,sql, data modeling, databases,https://example.com/sql
-C005,Applied NLP,natural language processing, nlp,spacy,https://example.com/nlp
-C006,Data Visualization with Tableau,visualization, tableau, dashboards,https://example.com/tableau
+C002,Machine Learning Basics,"supervised learning, regression, classification",https://example.com/ml
+C003,Deep Learning with PyTorch,"deep learning, neural networks, pytorch",https://example.com/pytorch
+C004,Data Engineering with SQL,"sql, data modeling, databases",https://example.com/sql
+C005,Applied NLP,"natural language processing, nlp, spacy",https://example.com/nlp
+C006,Data Visualization with Tableau,"visualization, tableau, dashboards",https://example.com/tableau

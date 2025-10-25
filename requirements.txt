@@ -12,3 +12,6 @@ nltk
 tqdm
 sentence-transformers
 transformers
+faiss-cpu
+PyMuPDF
+python-multipart
