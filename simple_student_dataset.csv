@@ -1,4 +1,4 @@
-Student_ID,Age,PUC_Score,Sem_1,Sem_2,Sem_3,Sem_4,Sem_5,Sem_6,Attendance_%,Study_Hours_Per_Day,Sleep_Hours_Per_Day,Courses_Completed
+Student_ID,Age,PUC_Score,Sem_1,Sem_2,Sem_3,Sem_4,Sem_5,Sem_6,Attendance_percent,Study_Hours_Per_Day,Sleep_Hours_Per_Day,Courses_Completed
 Student_1,19,69.57,9.11,9.5,6.58,7.32,7.32,5.09,72.17,5.7,7.5,Python
 Student_2,21,86.2,8.84,8.34,6.79,7.42,9.66,7.28,70.22,5.9,6.4,R
 Student_3,21,75.13,6.89,6.02,6.83,5.23,5.91,9.58,61.26,1.5,8.1,Python

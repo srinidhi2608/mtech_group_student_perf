@@ -58,7 +58,7 @@ def build_student_feature_pipeline(student_df):
     df['projects'] = df['projects'].fillna('')
     df['branch'] = df['branch'].fillna('Unknown')
     project_vect = TfidfVectorizer(max_features=500, stop_words='english', ngram_range=(1,2))
-    onehot_branch = OneHotEncoder(handle_unknown='ignore', sparse=False)
+    onehot_branch = OneHotEncoder(handle_unknown='ignore')
     preprocessor = ColumnTransformer(transformers=[
         ('projects', project_vect, 'projects'),
         ('branch', onehot_branch, ['branch'])
