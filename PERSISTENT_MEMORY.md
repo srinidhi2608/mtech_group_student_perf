@@ -118,12 +118,12 @@ Response:
     {
       "role": "user",
       "text": "What is machine learning?",
-      "ts": "2025-10-27 18:00:00"
+      "ts": "2024-01-15 10:30:00"
     },
     {
       "role": "assistant",
       "text": "Machine learning is...",
-      "ts": "2025-10-27 18:00:01"
+      "ts": "2024-01-15 10:30:05"
     }
   ]
 }

@@ -1,7 +1,7 @@
 #!/bin/bash
-# Smoke test script for persistent memory chat endpoint
-
 set -e
+
+# Smoke test script for persistent memory chat endpoint
 
 API_URL="http://localhost:8000"
 STUDENT_1="Student_1"
@@ -23,7 +23,6 @@ make_request() {
         -d "$payload")
     echo "Response: $response"
     echo ""
-    echo "$response"
 }
 
 # Test 1: Chat without student_id (backward compatibility)
