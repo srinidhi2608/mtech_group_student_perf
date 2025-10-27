@@ -5,6 +5,8 @@ import pandas as pd
 import os
 from typing import List, Optional
 from openai import OpenAI
+from langchain_community.llms import Ollama
+from langchain_community.chat_models import ChatOllama
 
 
 # helper modules we added above
@@ -118,23 +120,15 @@ def chat(req: ChatRequest):
     context = "\n\n---\n\n".join([r.get('text','')[:1500] for r in results])
     answer = None
     print(os.getenv("OPENAI_API_KEY"))
-    if req.use_llm and os.getenv("OPENAI_API_KEY"):
+    if req.use_llm :
         try:
-            import openai
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-            resp = client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": q}
-                ],
-                max_tokens=400,
-                temperature=0.0,
-            )
+            print("Load the model for LLM")
+            llm = ChatOllama(model="myname_model:latest")
+            response = llm.invoke(q)
+            print(response.content)
+            answer = response.content
 
-            # Extract the assistant text
-            answer = resp.choices[0].message["content"]
         except Exception as e:
             print("something went wrong", e)
             answer = None
