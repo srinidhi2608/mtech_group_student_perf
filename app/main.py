@@ -3,6 +3,7 @@ from pydantic import BaseModel
 import joblib
 import pandas as pd
 import os
+import logging
 from typing import List, Optional
 from openai import OpenAI
 from langchain_community.llms import Ollama
@@ -15,6 +16,17 @@ from src.embeddings import EmbeddingService, get_embeddings_model
 from src.vectorstore import FaissStore
 from src.company_matcher import load_companies, build_company_skill_profiles, match_student_to_companies_by_flags, match_student_to_companies_by_text
 from src.recommender import load_courses_catalog, recommend_courses_for_skills
+
+# Persistent memory imports (defensive)
+sqlite_memory = None
+semantic_memory = None
+try:
+    from src.persistent_memory import SQLiteMemory, SemanticMemory
+    logging.info("Persistent memory modules imported successfully")
+except Exception as e:
+    logging.warning(f"Could not import persistent_memory module: {e}")
+    SQLiteMemory = None
+    SemanticMemory = None
 
 app = FastAPI(title="Student (RAG + Sem6 predictor)")
 
@@ -64,6 +76,24 @@ except Exception:
     embedder = None
     vectorstore = None
 
+# Initialize persistent memory modules
+if SQLiteMemory is not None and embedder is not None:
+    try:
+        sqlite_memory = SQLiteMemory(db_path="models/chat_history.db")
+        semantic_memory = SemanticMemory(
+            embedder=embedder,
+            index_path="models/semantic_memory.index",
+            meta_path="models/semantic_memory.json"
+        )
+        logging.info("Persistent memory initialized successfully")
+    except Exception as e:
+        logging.warning(f"Failed to initialize persistent memory: {e}")
+        sqlite_memory = None
+        semantic_memory = None
+else:
+    logging.info("Persistent memory not available (missing dependencies)")
+
+
 def ensure_upload_dir():
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -106,33 +136,116 @@ class ChatRequest(BaseModel):
     query: str
     top_k: Optional[int] = 8
     use_llm: Optional[bool] = True
+    student_id: Optional[str] = None
 
 @app.post("/chat")
 def chat(req: ChatRequest):
 
     if embedder is None or vectorstore is None:
         raise HTTPException(status_code=500, detail="Embeddings or vectorstore not available.")
+    
     q = req.query
+    
+    # Derive student_id (default to 'anonymous' for backward compatibility)
+    student_id = req.student_id or 'anonymous'
+    
+    # Initialize response fields
+    retrieved_qa = []
+    chat_history = []
+    
+    # Retrieve recent chat history from SQLiteMemory
+    if sqlite_memory is not None:
+        try:
+            chat_history = sqlite_memory.get_last_n(student_id, n=12)
+        except Exception as e:
+            logging.warning(f"Failed to retrieve chat history: {e}")
+            chat_history = []
+    
+    # Retrieve student-specific QA from SemanticMemory
+    if semantic_memory is not None:
+        try:
+            retrieved_qa = semantic_memory.retrieve_similar(student_id, q, k=3)
+        except Exception as e:
+            logging.warning(f"Failed to retrieve semantic memories: {e}")
+            retrieved_qa = []
+    
+    # Perform existing vectorstore search for uploaded documents
     qvec = embedder.embed_text(q).astype("float32")
     results = vectorstore.search(qvec, k=req.top_k or 8)
-    # results is list of metadata dicts (with score)
-    # Build context text
-    context = "\n\n---\n\n".join([r.get('text','')[:1500] for r in results])
+    
+    # Build enhanced context for the prompt
+    # Start with system message
+    prompt_parts = []
+    
+    # Add relevant prior student Q&A if available
+    if retrieved_qa:
+        qa_context = "Relevant prior student Q&A:\n"
+        for i, qa in enumerate(retrieved_qa[:3], 1):
+            qa_context += f"{i}. Q: {qa.get('text', '')[:200]}\n"
+        prompt_parts.append(qa_context)
+    
+    # Add relevant documents from vectorstore
+    if results:
+        doc_context = "Relevant documents:\n"
+        doc_context += "\n\n---\n\n".join([r.get('text','')[:1500] for r in results])
+        prompt_parts.append(doc_context)
+    
+    # Add recent conversation context
+    if chat_history:
+        conv_context = "Recent conversation:\n"
+        for msg in chat_history[-6:]:  # Last 6 messages (3 turns)
+            role = msg.get('role', 'user')
+            text = msg.get('text', '')[:200]
+            conv_context += f"{role.capitalize()}: {text}\n"
+        prompt_parts.append(conv_context)
+    
+    # Add current user question
+    prompt_parts.append(f"Current question: {q}")
+    
+    # Compose full prompt
+    full_prompt = "\n\n".join(prompt_parts)
+    
+    # Call existing LLM synthesis path unchanged
     answer = None
     print(os.getenv("OPENAI_API_KEY"))
     if req.use_llm :
         try:
-
             print("Load the model for LLM")
             llm = ChatOllama(model="myname_model:latest")
-            response = llm.invoke(q)
+            response = llm.invoke(full_prompt)
             print(response.content)
             answer = response.content
 
         except Exception as e:
             print("something went wrong", e)
             answer = None
-    return {"query": q, "answer": answer, "retrieved": results}
+    
+    # Persist messages to SQLiteMemory
+    if sqlite_memory is not None and answer is not None:
+        try:
+            sqlite_memory.save_message(student_id, 'user', q)
+            sqlite_memory.save_message(student_id, 'assistant', answer)
+        except Exception as e:
+            logging.warning(f"Failed to save messages to SQLiteMemory: {e}")
+    
+    # Add QA pair to SemanticMemory
+    if semantic_memory is not None and answer is not None:
+        try:
+            semantic_memory.add_memory(student_id, 'user', q)
+            semantic_memory.add_memory(student_id, 'assistant', answer)
+        except Exception as e:
+            logging.warning(f"Failed to add to SemanticMemory: {e}")
+    
+    # Return enhanced response
+    response_data = {"query": q, "answer": answer, "retrieved": results}
+    
+    # Add optional fields only when memory is available
+    if retrieved_qa:
+        response_data["retrieved_qa"] = retrieved_qa
+    if chat_history:
+        response_data["chat_history"] = chat_history
+    
+    return response_data
 
 @app.post("/student_predict")
 def student_predict(payload: StudentPayload):
