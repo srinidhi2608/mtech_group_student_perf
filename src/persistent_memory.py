@@ -50,9 +50,9 @@ class SQLiteMemory:
                         ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """)
-                # Create index for efficient student_id queries
+                # Create index for efficient student_id queries (using id for ordering)
                 cursor.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_student_id ON chat_history(student_id, ts DESC)
+                    CREATE INDEX IF NOT EXISTS idx_student_id ON chat_history(student_id, id DESC)
                 """)
                 conn.commit()
                 logger.info("Chat history table initialized")
@@ -101,7 +101,7 @@ class SQLiteMemory:
                     SELECT role, text, metadata, ts
                     FROM chat_history
                     WHERE student_id = ?
-                    ORDER BY ts DESC
+                    ORDER BY id DESC
                     LIMIT ?
                 """, (student_id, n))
                 
